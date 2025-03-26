@@ -4,13 +4,14 @@ import { Trash2, Share2, Download } from 'lucide-react';
 import AudioPlayer from './AudioPlayer';
 import SharePopup from '../ui/SharePopup';
 import ConfirmationDialog from '../ui/ConfirmationDialog';
+import Button from '../ui/Button';
 
 interface RecordingCardProps {
   recording: Recording;
   onDelete: (id: string) => void;
   isSelected: boolean;
   onSelect: (recording: Recording) => void;
-  onOpenDetails: (recording: Recording) => void; // Ajout de cette prop pour ouvrir les détails
+  onOpenDetails: (recording: Recording) => void;
 }
 
 const formatDate = (dateString: string): string => {
@@ -52,19 +53,19 @@ const RecordingCard: React.FC<RecordingCardProps> = ({
     setIsConfirmationOpen(false);
   };
 
-  const handleCardClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (
-      audioPlayerRef.current &&
-      audioPlayerRef.current.contains(e.target as Node)
-    ) {
-      return;
-    }
+  const handleOpenDetails = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    onOpenDetails(recording);
   };
 
   const handleDownload = () => {
     const filename = recording.audio_url.split('/').pop();
-    const downloadUrl = `/download/${filename}`;
-    window.location.href = downloadUrl;
+    if (filename) {
+      const downloadUrl = `/download/${filename}`;
+      window.location.href = downloadUrl;
+    } else {
+      console.error('Invalid audio URL');
+    }
   };
 
   const formattedDate = formatDate(recording.date);
@@ -73,49 +74,57 @@ const RecordingCard: React.FC<RecordingCardProps> = ({
     <div
       className={`bg-white dark:bg-gray-800 rounded-lg shadow p-2 sm:p-4 flex flex-col text-xs sm:text-base w-full ${
         isSelected ? 'border-2 border-yellow-400' : ''
-      } cursor-pointer`}
-      onClick={handleCardClick}
+      }`}
       style={{ transition: 'border-color 0.3s ease' }}
     >
-      <div className="flex flex-col sm:flex-row justify-between items-center mb-2 sm:mb-3">
-        <h3 className="text-sm sm:text-lg font-medium text-gray-900 dark:text-white mb-1 sm:mb-0">
-          {recording.title}
-        </h3>
-        <div className="flex items-center space-x-2">
-          <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300">
-            {formattedDate}
-          </p>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              openPopup();
-            }}
-            className="text-gray-600 hover:text-indigo-600 transition-colors"
-            aria-label="Share recording"
-          >
-            <Share2 size={16} />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDownload();
-            }}
-            className="text-gray-600 hover:text-indigo-600 transition-colors"
-            aria-label="Download recording"
-          >
-            <Download size={16} />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDelete();
-            }}
-            className="text-red-600 hover:text-red-800 transition-colors"
-            aria-label={`Delete ${recording.title}`}
-          >
-            <Trash2 size={16} />
-          </button>
+      <div className="flex justify-between items-center mb-2 sm:mb-3">
+        <div className="flex flex-col sm:flex-row justify-between mb-2 w-full mr-2 sm:mb-3">
+          <h3 className="text-sm sm:text-lg font-medium text-gray-900 dark:text-white mb-1 sm:mb-0">
+            {recording.title}
+          </h3>
+          <div className="flex items-center space-x-2">
+            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300">
+              {formattedDate}
+            </p>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                openPopup();
+              }}
+              className="text-gray-600 hover:text-indigo-600 transition-colors"
+              aria-label="Share recording"
+            >
+              <Share2 size={16} />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDownload();
+              }}
+              className="text-gray-600 hover:text-indigo-600 transition-colors"
+              aria-label="Download recording"
+            >
+              <Download size={16} />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDelete();
+              }}
+              className="text-red-600 hover:text-red-800 transition-colors"
+              aria-label={`Delete ${recording.title}`}
+            >
+              <Trash2 size={16} />
+            </button>
+          </div>
         </div>
+        <Button
+          onClick={handleOpenDetails}
+          className="text-white p-1 bg-indigo-600 hover:bg-indigo-700 transition-colors ml-auto sm:ml-0 items-center"
+          aria-label={`Open ${recording.title}`}
+        >
+          Ouvrir
+        </Button>
       </div>
       <div ref={audioPlayerRef}>
         <AudioPlayer
