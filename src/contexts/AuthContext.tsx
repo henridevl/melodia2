@@ -14,6 +14,7 @@ interface AuthContextType {
     lastName: string
   ) => Promise<void>; // Fonction d'inscription
   signOut: () => Promise<void>; // Fonction de déconnexion
+  resetPassword: (email: string) => Promise<void>; // Fonction de réinitialisation de mot de passe
 }
 
 // Création du contexte d'authentification
@@ -136,9 +137,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  // Fonction de réinitialisation de mot de passe
+  const resetPassword = async (email: string) => {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/update-password`,
+      });
+      if (error) throw error;
+      console.log('Password reset email sent');
+    } catch (error) {
+      console.error('Error during password reset:', error);
+      if (error instanceof AuthError) {
+        throw new Error(error.message);
+      }
+      throw error;
+    }
+  };
+
   // Fournir les valeurs du contexte aux composants enfants
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut, resetPassword }}>
       {children}
     </AuthContext.Provider>
   );
