@@ -98,6 +98,11 @@ const Recordings: React.FC = () => {
     setShowDetails(true);
   };
 
+  const handleOpenDetails = (recording: Recording) => {
+    setSelectedRecording(recording);
+    setShowDetails(true);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 pb-10">
       <Navigation
@@ -173,6 +178,7 @@ const Recordings: React.FC = () => {
             onShare={handleShare}
             onSelect={handleSelectRecording}
             selectedRecording={selectedRecording}
+            onOpenDetails={handleOpenDetails} // Passez onOpenDetails ici
             loading={loading}
           />
         </div>

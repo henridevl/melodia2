@@ -9,6 +9,7 @@ interface RecordingListProps {
   onShare: (recording: Recording) => void;
   onSelect: (recording: Recording) => void;
   selectedRecording: Recording | null;
+  onOpenDetails: (recording: Recording) => void; // Ajout de cette prop
 }
 
 const RecordingList: React.FC<RecordingListProps> = ({
@@ -17,6 +18,7 @@ const RecordingList: React.FC<RecordingListProps> = ({
   onShare,
   onSelect,
   selectedRecording,
+  onOpenDetails, // Ajout de cette prop
 }) => {
   const [isGridView, setIsGridView] = useState(false);
 
@@ -44,14 +46,16 @@ const RecordingList: React.FC<RecordingListProps> = ({
         {recordings.map((recording) => (
           <div
             key={recording.id}
-            onClick={() => onSelect(recording)}
-            className={`p-1 sm:p-4 text-xs sm:text-base cursor-pointer`}
+            //onClick={() => onSelect(recording)}
+            className={`p-1 sm:p-4 text-xs sm:text-base `}
           >
             <RecordingCard
               recording={recording}
               onDelete={onDelete}
               onShare={onShare}
-              isSelected={selectedRecording?.id === recording.id} // Passez isSelected ici
+              isSelected={selectedRecording?.id === recording.id}
+              onSelect={onSelect}
+              onOpenDetails={onOpenDetails} // Passez onOpenDetails ici
             />
           </div>
         ))}

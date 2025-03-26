@@ -130,6 +130,7 @@ const Navigation: React.FC<NavigationProps> = ({
             </div>
             <div className="flex items-center space-x-4">
               <div className="relative">
+                {/*
                 <button
                   onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
                   className="relative p-2 rounded-full hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-400"
@@ -141,7 +142,7 @@ const Navigation: React.FC<NavigationProps> = ({
                     </span>
                   )}
                 </button>
-
+                  */}
                 {isNotificationsOpen && (
                   <div ref={notificationRef}>
                     <NotificationList
