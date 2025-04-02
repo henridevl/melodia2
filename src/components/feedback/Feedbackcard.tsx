@@ -1,5 +1,5 @@
 // FeedbackItem.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Feedback as FeedbackType } from '../../services/supabase';
 import {
   ThumbsUp,
@@ -10,7 +10,7 @@ import {
   CornerDownRight,
 } from 'lucide-react';
 import ReplyForm from './ReplyFormulaire';
-import { getUserInitials } from '../../utils/utils'; // Importez la fonction ici
+import { getUserInitials, getUserProfile } from '../../utils/utils'; // Importez les fonctions ici
 
 interface FeedbackItemProps {
   feedback: FeedbackType;
@@ -35,6 +35,19 @@ const FeedbackItem: React.FC<FeedbackItemProps> = ({
     null
   );
   const [replyingTo, setReplyingTo] = useState<FeedbackType | null>(null);
+  const [profile, setProfile] = useState<any>(null);
+  const [initials, setInitials] = useState<string>('U');
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      const userProfile = await getUserProfile(feedback.user_id);
+      setProfile(userProfile);
+      const userInitials = await getUserInitials(feedback.user_id);
+      setInitials(userInitials);
+    };
+
+    fetchProfile();
+  }, [feedback.user_id]);
 
   const handleKeyDown = (
     e: React.KeyboardEvent<HTMLInputElement>,
@@ -53,7 +66,7 @@ const FeedbackItem: React.FC<FeedbackItemProps> = ({
       <div className="flex justify-between items-center mb-2">
         <div className="flex items-center">
           <div className="w-8 h-8 rounded-full mr-2 flex items-center justify-center bg-gray-300 text-gray-700">
-            {getUserInitials(feedback.user_id)} {/* Utilisez la fonction ici */}
+            {initials} {/* Utilisez les initiales ici */}
           </div>
           <div>
             <span className="font-semibold text-gray-800">

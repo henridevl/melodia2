@@ -27,6 +27,8 @@ const Dashboard: React.FC = () => {
   );
   const [showNoteForm, setShowNoteForm] = useState(false);
   const [showRecordingForm, setShowRecordingForm] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [notificationCount, setNotificationCount] = useState(0);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -209,9 +211,9 @@ const Dashboard: React.FC = () => {
 
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 18) return 'Good afternoon';
-    return 'Good evening';
+    if (hour < 12) return 'Bonjour';
+    if (hour < 18) return 'Bonjour';
+    return 'Bonsoir';
   };
 
   if (loading) {
@@ -223,17 +225,17 @@ const Dashboard: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navigation
-        signOut={signOut}
-        isMenuOpen={isMenuOpen}
-        setIsMenuOpen={setIsMenuOpen}
-        isNavOpen={isNavOpen}
-        setIsNavOpen={setIsNavOpen}
-        profile={profile}
-        user={user}
-      />
-
+    <Navigation
+      signOut={signOut}
+      isMenuOpen={isMenuOpen}
+      setIsMenuOpen={setIsMenuOpen}
+      isNavOpen={isNavOpen}
+      setIsNavOpen={setIsNavOpen}
+      profile={profile}
+      user={user}
+      notifications={notifications}
+      notificationCount={notificationCount}
+    >
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
           <div className="flex items-center justify-between mb-8">
@@ -242,7 +244,7 @@ const Dashboard: React.FC = () => {
                 {getGreeting()}, {profile?.first_name || 'there'}!
               </h1>
               <p className="mt-1 text-sm text-gray-600">
-                Here's an overview of your musical journey
+                Voici un aperçu de votre travail !
               </p>
             </div>
             <div className="flex space-x-4">
@@ -329,7 +331,7 @@ const Dashboard: React.FC = () => {
           />
         </div>
       )}
-    </div>
+    </Navigation>
   );
 };
 

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../services/supabase';
-
 import { Feedback as FeedbackType, Profile } from '../../services/supabase';
 import {
   ThumbsUp,
@@ -16,6 +15,7 @@ import {
   SortDesc,
   CornerDownRight,
   Edit,
+  Plus,
 } from 'lucide-react';
 import ConfirmationDialog from '../ui/ConfirmationDialog';
 import { useAudioContext } from '../../contexts/AudioContext';
@@ -36,14 +36,10 @@ const FeedbackComponent: React.FC<FeedbackProps> = ({
   const [feedbacks, setFeedbacks] = useState<FeedbackType[]>([]);
   const [newFeedback, setNewFeedback] = useState('');
   const [replyText, setReplyText] = useState('');
-  const [editingFeedback, setEditingFeedback] = useState<FeedbackType | null>(
-    null
-  );
+  const [editingFeedback, setEditingFeedback] = useState<FeedbackType | null>(null);
   const [replyingTo, setReplyingTo] = useState<FeedbackType | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [feedbackToDelete, setFeedbackToDelete] = useState<FeedbackType | null>(
-    null
-  );
+  const [feedbackToDelete, setFeedbackToDelete] = useState<FeedbackType | null>(null);
   const [sortBy, setSortBy] = useState<'date' | 'likes'>('date');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [filterBy, setFilterBy] = useState<'all' | 'ok' | 'notOk'>('all');
@@ -51,6 +47,7 @@ const FeedbackComponent: React.FC<FeedbackProps> = ({
   const [showFilterOptions, setShowFilterOptions] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isVisible, setIsVisible] = useState(true); // Nouvel état pour gérer la visibilité
   const { currentTime } = useAudioContext();
 
   useEffect(() => {
@@ -97,19 +94,22 @@ const FeedbackComponent: React.FC<FeedbackProps> = ({
   };
 
   const addFeedback = async (parentId?: string) => {
+    const feedbackData = {
+      comment: parentId ? replyText : newFeedback,
+      user_id: userId,
+      [resourceType + '_id']: resourceId,
+      parent_id: parentId || null,
+      liked_by: [],
+      likes: 0,
+    };
+
+    if (isVisible) {
+      feedbackData.timestamp_seconds = currentTime;
+    }
+
     const { data, error } = await supabase
       .from('feedback')
-      .insert([
-        {
-          comment: parentId ? replyText : newFeedback,
-          user_id: userId,
-          [resourceType + '_id']: resourceId,
-          parent_id: parentId || null,
-          timestamp_seconds: currentTime,
-          liked_by: [],
-          likes: 0,
-        },
-      ])
+      .insert([feedbackData])
       .select();
 
     if (error) {
@@ -217,9 +217,7 @@ const FeedbackComponent: React.FC<FeedbackProps> = ({
   const getUserInitials = (userId: string) => {
     if (profile) {
       const { first_name, last_name } = profile;
-      return `${first_name.charAt(0).toUpperCase()}${last_name
-        .charAt(0)
-        .toUpperCase()}`;
+      return `${first_name.charAt(0).toUpperCase()}${last_name.charAt(0).toUpperCase()}`;
     }
     return 'U';
   };
@@ -251,12 +249,12 @@ const FeedbackComponent: React.FC<FeedbackProps> = ({
   };
 
   const handleFocus = (e: React.FocusEvent<HTMLTextAreaElement>) => {
-    e.target.rows = 3;
+    e.target.rows = 3; // Augmente le nombre de lignes à 3 lorsque le textarea reçoit le focus
   };
 
   const handleBlur = (e: React.FocusEvent<HTMLTextAreaElement>) => {
     if (e.target.value === '') {
-      e.target.rows = 1;
+      e.target.rows = 1; // Réduit le nombre de lignes à 1 si le textarea est vide lorsque le focus est perdu
     }
   };
 
@@ -282,16 +280,39 @@ const FeedbackComponent: React.FC<FeedbackProps> = ({
 
   return (
     <div className="bg-gray-50 p-2 rounded-lg shadow-lg">
-      <div className="flex flex-col bg-gray-100 p-2 mb-1 rounded-lg shadow-md w-full ">
-        <div className="flex items-center space-x-3">
-          <div className="border rounded-lg p-1 flex items-center space-x-3 bg-white w-full">
-            <div className="flex justify-between items-center ">
-              <span className="text-sm text-gray-500">
-                @{currentTime.toFixed(1)}
-              </span>
-              <button className="focus:outline-none">
-                <X className="w-4 h-4 text-gray-500" />
-              </button>
+      <div className="flex flex-col bg-gray-100 p-2 mb-1 rounded-lg shadow-md w-full">
+        <div 
+        className="flex items-center space-x-3">
+          <div 
+            
+            className="border rounded-lg p-1 flex items-center space-x-3 bg-white w-full">
+            <div className="flex justify-between items-center">
+              {isVisible && (
+                <>
+                  <span className="text-sm text-gray-500">
+                    @{currentTime.toFixed(1)}
+                  </span>
+                  <button
+                    className="focus:outline-none"
+                    onClick={() => setIsVisible(false)}
+                  >
+                    <X className="w-4 h-4 text-gray-500" />
+                  </button>
+                </>
+              )}
+            </div>
+            <div className="flex justify-between items-center">
+              {!isVisible && (
+                <>
+
+                  <button
+                    className="focus:outline-none"
+                    onClick={() => setIsVisible(true)}
+                  >
+                    <Plus className="w-4 h-4 text-gray-500" />
+                  </button>
+                </>
+              )}
             </div>
             <textarea
               value={newFeedback}
@@ -312,7 +333,7 @@ const FeedbackComponent: React.FC<FeedbackProps> = ({
             </button>
           </div>
         </div>
-        <div className="flex items-center  p-1">
+        <div className="flex items-center p-1">
           <div className="relative">
             <button
               onClick={() => setShowSortOptions(!showSortOptions)}
@@ -563,9 +584,7 @@ const FeedbackComponent: React.FC<FeedbackProps> = ({
                         </div>
                         <div>
                           <span className="font-semibold text-gray-800">
-                            {profile
-                              ? `${profile.first_name} ${profile.last_name}`
-                              : 'Utilisateur'}
+                            {reply.user_id}
                           </span>
                           <span className="text-xs text-gray-500 ml-2">
                             {new Date(reply.created_at).toLocaleString()}
