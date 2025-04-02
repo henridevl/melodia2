@@ -75,3 +75,12 @@ export type Feedback = {
   timestamp_seconds?: number;
   liked_by?: string[]; // Ajout de la colonne liked_by
 };
+
+export type Composition = {
+  id: string;
+  user_id: string;
+  title: string;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+};

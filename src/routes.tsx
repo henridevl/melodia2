@@ -5,6 +5,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Notes from './pages/Notes';
 import Recordings from './pages/Record'; // Import the new Recordings component
+import Compositions from './pages/Compositions';
 import SharedDashboard from './pages/ShareDashboard'; // Import the new SharedDashboard component
 
 const AppRoutes: React.FC = () => {
@@ -77,6 +78,10 @@ const AppRoutes: React.FC = () => {
       <Route
         path="/recordings"
         element={user ? <Recordings /> : <Navigate to="/login" replace />}
+      />
+      <Route
+        path="/Compositions"
+        element={user ? <Compositions /> : <Navigate to="/login" replace />}
       />
       <Route
         path="/shared"

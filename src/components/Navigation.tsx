@@ -1,3 +1,4 @@
+// components/Navigation.tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -10,6 +11,7 @@ import {
   Mic,
   Bell,
   Share2,
+  MusicIcon, // Ajoutez cette icône si elle n'existe pas déjà
 } from 'lucide-react';
 import NotificationList from './NotificationList';
 import { supabase } from '../services/supabase';
@@ -99,6 +101,13 @@ const Navigation: React.FC<NavigationProps> = ({
           >
             <Mic className="h-5 w-5 mr-2" />
             Recordings
+          </Link>
+          <Link
+            to="/compositions"
+            className="flex items-center px-4 py-2 hover:bg-indigo-600"
+          >
+            <MusicIcon className="h-5 w-5 mr-2" />
+            Compositions
           </Link>
           <Link
             to="/shared"
@@ -218,6 +227,9 @@ const Navigation: React.FC<NavigationProps> = ({
         </Link>
         <Link to="/recordings" className="text-white hover:text-indigo-200">
           <Mic className="h-6 w-6" />
+        </Link>
+        <Link to="/compositions" className="text-white hover:text-indigo-200">
+          <MusicIcon className="h-6 w-6" />
         </Link>
         <Link to="/shared" className="text-white hover:text-indigo-200">
           <Share2 className="h-6 w-6" />
