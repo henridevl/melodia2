@@ -578,13 +578,15 @@ const FeedbackComponent: React.FC<FeedbackProps> = ({
                     className="ml-8 mt-2 p-4 bg-gray-100 rounded-lg shadow"
                   >
                     <div className="flex items-center mb-2">
-                      <div className="flex items-center">
+                    <div className="flex items-center">
                         <div className="w-8 h-8 rounded-full mr-2 flex items-center justify-center bg-gray-300 text-gray-700">
                           {getUserInitials(reply.user_id)}
                         </div>
                         <div>
                           <span className="font-semibold text-gray-800">
-                            {reply.user_id}
+                            {profile
+                              ? `${profile.first_name} ${profile.last_name}`
+                              : 'Utilisateur'}
                           </span>
                           <span className="text-xs text-gray-500 ml-2">
                             {new Date(reply.created_at).toLocaleString()}
