@@ -67,38 +67,131 @@ const Compositions: React.FC = () => {
     }
   };
 
+  const handleNotes = async (compositionId: string, notes: { id: string }[]) => {
+    try {
+      // Supprimer les notes existantes pour cette composition
+      await supabase
+        .from('composition_notes')
+        .delete()
+        .eq('composition_id', compositionId);
+  
+      // Insérer chaque note individuellement
+      for (const note of notes) {
+        if (!isValidUUID(note.id)) {
+          throw new Error(`Invalid UUID for note: ${note.id}`);
+        }
+  
+        const { error } = await supabase
+          .from('composition_notes')
+          .insert({ composition_id: compositionId, note_id: note.id });
+  
+        if (error) throw error;
+      }
+    } catch (error) {
+      console.error('Error handling notes:', error);
+      throw error;
+    }
+  };
+  
+  const handleRecordings = async (compositionId: string, recordings: { id: string }[]) => {
+    try {
+      // Supprimer les enregistrements existants pour cette composition
+      await supabase
+        .from('composition_recordings')
+        .delete()
+        .eq('composition_id', compositionId);
+  
+      // Insérer chaque enregistrement individuellement
+      for (const recording of recordings) {
+        if (!isValidUUID(recording.id)) {
+          throw new Error(`Invalid UUID for recording: ${recording.id}`);
+        }
+  
+        const { error } = await supabase
+          .from('composition_recordings')
+          .insert({ composition_id: compositionId, recording_id: recording.id });
+  
+        if (error) throw error;
+      }
+    } catch (error) {
+      console.error('Error handling recordings:', error);
+      throw error;
+    }
+  };
+  
+  // Fonction utilitaire pour valider les UUID
+  const isValidUUID = (uuid: string) => {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(uuid);
+  };
+  
+  
   const handleSubmit = async (compositionData: Partial<Composition>) => {
     try {
       if (!user) return;
-
+  
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('id')
         .eq('id', user.id)
         .single();
-
+  
       if (profileError || !profile) {
         throw new Error(
           'User profile not found. Please try logging out and back in.'
         );
       }
-
+  
+      const dataToSave = {
+        ...compositionData,
+        user_id: user.id,
+      };
+  
+      // Exclure les colonnes `notes` et `recordings` si elles n'existent pas
+      const notes = dataToSave.notes;
+      const recordings = dataToSave.recordings;
+      delete dataToSave.notes;
+      delete dataToSave.recordings;
+  
       if (editingComposition) {
         const { error } = await supabase
           .from('compositions')
-          .update(compositionData)
+          .update(dataToSave)
           .eq('id', editingComposition.id)
           .eq('user_id', user.id);
-
+  
         if (error) throw error;
+  
+        // Gérer les notes
+        if (notes) {
+          await handleNotes(editingComposition.id, notes);
+        }
+  
+        // Gérer les enregistrements
+        if (recordings) {
+          await handleRecordings(editingComposition.id, recordings);
+        }
       } else {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('compositions')
-          .insert([{ ...compositionData, user_id: user.id }]);
-
+          .insert([dataToSave])
+          .select('id');
+  
         if (error) throw error;
+  
+        const newCompositionId = data[0].id;
+  
+        // Gérer les notes
+        if (notes) {
+          await handleNotes(newCompositionId, notes);
+        }
+  
+        // Gérer les enregistrements
+        if (recordings) {
+          await handleRecordings(newCompositionId, recordings);
+        }
       }
-
+  
       await fetchCompositions();
       setShowForm(false);
       setEditingComposition(null);
@@ -112,6 +205,11 @@ const Compositions: React.FC = () => {
       );
     }
   };
+  
+  
+  
+  
+  
 
   const handleEdit = (composition: Composition) => {
     setEditingComposition(composition);
