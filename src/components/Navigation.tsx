@@ -183,6 +183,7 @@ const Navigation: React.FC<NavigationProps> = ({
                         </p>
                         <p className="text-gray-500 truncate">{user?.email}</p>
                       </div>
+                      {/*
                       <Link
                         to="/settings"
                         className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
@@ -190,6 +191,7 @@ const Navigation: React.FC<NavigationProps> = ({
                         <Settings className="h-4 w-4 mr-2" />
                         Settings
                       </Link>
+                */}
                       <button
                         onClick={signOut}
                         className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
