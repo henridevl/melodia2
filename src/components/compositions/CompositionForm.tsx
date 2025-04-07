@@ -1,244 +1,190 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../services/supabase';
-import type { Composition, Recording, Note } from '../../services/supabase';
-import Button from '../ui/Button';
-import { Plus, X } from 'lucide-react';
+import { Mic, Upload } from 'lucide-react';
+import { supabase } from '../services/supabase';
+import type { Recording, Profile } from '../services/supabase';
+import { useAuth } from '../contexts/AuthContext';
+import RecordingList from '../components/recordings/RecordingList';
+import RecordingForm from '../components/recordings/RecordingForm';
+import RecordingDetails from '../components/recordings/RecordingDetails';
+import SharePopup from '../components/ui/SharePopup';
+import Button from '../components/ui/Button';
+import Navigation from '../components/Navigation';
+import ErrorMessage from '../components/ui/ErrorMessage';
+import AudioUploadForm from '../components/recordings/AudioUploadForm';
 
-interface CompositionFormProps {
-  composition?: Composition;
-  onSubmit: (compositionData: Partial<Composition>) => void;
-  onCancel: () => void;
-}
-
-const CompositionForm: React.FC<CompositionFormProps> = ({
-  composition,
-  onSubmit,
-  onCancel,
-}) => {
-  const [title, setTitle] = useState<string>(composition?.title || '');
-  const [description, setDescription] = useState<string>(composition?.description || '');
-  const [selectedRecordings, setSelectedRecordings] = useState<Recording[]>(composition?.recordings || []);
-  const [selectedNotes, setSelectedNotes] = useState<Note[]>(composition?.notes || []);
-  const [availableRecordings, setAvailableRecordings] = useState<Recording[]>([]);
-  const [availableNotes, setAvailableNotes] = useState<Note[]>([]);
-  const [showRecordingSelector, setShowRecordingSelector] = useState(false);
-  const [showNoteSelector, setShowNoteSelector] = useState(false);
+const Recordings: React.FC = () => {
+  const { user, signOut } = useAuth();
+  const [recordings, setRecordings] = useState<Recording[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [showUploadForm, setShowUploadForm] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isNavOpen, setIsNavOpen] = useState(false);
+  const [selectedRecording, setSelectedRecording] = useState<Recording | null>(
+    null
+  );
+  const [showDetails, setShowDetails] = useState(false);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [isSharePopupOpen, setIsSharePopupOpen] = useState(false);
 
   useEffect(() => {
-    fetchAvailableRecordings();
-    fetchAvailableNotes();
-  }, []);
+    if (user) {
+      fetchRecordings();
+      fetchProfile();
+    }
+  }, [user]);
 
-  const fetchAvailableRecordings = async () => {
-    const { data, error } = await supabase
-      .from('recordings')
-      .select('*')
-      .order('created_at', { ascending: false });
+  const fetchRecordings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('recordings')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false });
 
-    if (!error && data) {
-      setAvailableRecordings(data);
+      if (error) throw error;
+      setRecordings(data || []);
+      setError(null);
+    } catch (error) {
+      console.error('Error fetching recordings:', error);
+      setError('Failed to fetch recordings. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const fetchAvailableNotes = async () => {
-    const { data, error } = await supabase
-      .from('notes')
-      .select('*')
-      .order('created_at', { ascending: false });
+  const fetchProfile = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user?.id)
+        .single();
 
-    if (!error && data) {
-      setAvailableNotes(data);
+      if (error) throw error;
+      setProfile(data);
+    } catch (error) {
+      console.error('Error fetching profile:', error);
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const compositionData = {
-      title,
-      description,
-      recordings: selectedRecordings,
-      notes: selectedNotes,
-    };
-    onSubmit(compositionData);
+  const handleDelete = async (recordingId: string) => {
+    try {
+      const { error } = await supabase
+        .from('recordings')
+        .delete()
+        .eq('id', recordingId)
+        .eq('user_id', user?.id);
+
+      if (error) throw error;
+      await fetchRecordings();
+      setSelectedRecording(null);
+      setShowDetails(false);
+      setError(null);
+    } catch (error) {
+      console.error('Error deleting recording:', error);
+      setError('Failed to delete recording. Please try again.');
+    }
   };
 
-  const addRecording = (recording: Recording) => {
-    setSelectedRecordings([...selectedRecordings, recording]);
-    setShowRecordingSelector(false);
+  const handleShare = (recording: Recording) => {
+    setSelectedRecording(recording);
+    setIsSharePopupOpen(true);
   };
 
-  const removeRecording = (recordingId: string) => {
-    setSelectedRecordings(selectedRecordings.filter(r => r.id !== recordingId));
+  const handleSelectRecording = (recording: Recording) => {
+    setSelectedRecording(recording);
+    setShowDetails(true);
   };
 
-  const addNote = (note: Note) => {
-    setSelectedNotes([...selectedNotes, note]);
-    setShowNoteSelector(false);
-  };
-
-  const removeNote = (noteId: string) => {
-    setSelectedNotes(selectedNotes.filter(n => n.id !== noteId));
+  const handleOpenDetails = (recording: Recording) => {
+    setSelectedRecording(recording);
+    setShowDetails(true);
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <div>
-        <label htmlFor="title" className="block text-sm font-medium text-gray-700">
-          Title
-        </label>
-        <input
-          type="text"
-          id="title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-          required
-        />
-      </div>
+    <div className="min-h-screen bg-gray-50 pb-10">
+      <Navigation
+        signOut={signOut}
+        isMenuOpen={isMenuOpen}
+        setIsMenuOpen={setIsMenuOpen}
+        isNavOpen={isNavOpen}
+        setIsNavOpen={setIsNavOpen}
+        profile={profile}
+        user={user}
+      />
 
-      <div>
-        <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-          Description
-        </label>
-        <textarea
-          id="description"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-          rows={4}
-        />
-      </div>
+      {showForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <RecordingForm
+            onClose={() => setShowForm(false)}
+            onSave={fetchRecordings}
+          />
+        </div>
+      )}
 
-      {/* Recordings Section */}
-      <div>
-        <div className="flex justify-between items-center mb-2">
-          <label className="block text-sm font-medium text-gray-700">Recordings</label>
-          <Button
-            type="button"
-            onClick={() => setShowRecordingSelector(true)}
-            variant="secondary"
-          >
-            <Plus className="h-4 w-4 mr-1" />
-            Add Recording
-          </Button>
+      {showUploadForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <AudioUploadForm
+            onClose={() => setShowUploadForm(false)}
+            onUpload={fetchRecordings}
+          />
         </div>
-        <div className="space-y-2">
-          {selectedRecordings.map((recording) => (
-            <div
-              key={recording.id}
-              className="flex items-center justify-between bg-gray-50 p-2 rounded-md"
-            >
-              <span className="text-sm text-gray-700">{recording.title}</span>
-              <button
-                type="button"
-                onClick={() => removeRecording(recording.id)}
-                className="text-red-600 hover:text-red-800"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          ))}
-        </div>
-        {showRecordingSelector && (
-          <div className="mt-2 p-4 border rounded-md">
-            <div className="flex justify-between items-center mb-2">
-              <h4 className="text-sm font-medium">Select Recording</h4>
-              <button
-                type="button"
-                onClick={() => setShowRecordingSelector(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="space-y-2 max-h-40 overflow-y-auto">
-              {availableRecordings
-                .filter(r => !selectedRecordings.find(sr => sr.id === r.id))
-                .map((recording) => (
-                  <button
-                    key={recording.id}
-                    type="button"
-                    onClick={() => addRecording(recording)}
-                    className="w-full text-left p-2 hover:bg-gray-50 rounded-md"
-                  >
-                    {recording.title}
-                  </button>
-                ))}
+      )}
+
+      {showDetails && selectedRecording && user && (
+        <RecordingDetails
+          recording={selectedRecording}
+          userId={user.id}
+          onClose={() => {
+            setShowDetails(false);
+            setSelectedRecording(null);
+          }}
+          onDelete={handleDelete}
+        />
+      )}
+
+      <SharePopup
+        isOpen={isSharePopupOpen}
+        onClose={() => {
+          setIsSharePopupOpen(false);
+          setSelectedRecording(null);
+        }}
+        resourceId={selectedRecording?.id || ''}
+        resourceType="recording"
+        resourceTitle={selectedRecording?.title || ''}
+      />
+
+      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        <div className="px-4 sm:px-0">
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-2xl font-semibold text-gray-900">Recordings</h1>
+            <div className="flex space-x-4">
+              <Button onClick={() => setShowForm(true)} className="bg-red-500">
+                <Mic className="h-4 w-4  bg-red-500" />
+              </Button>
+              <Button onClick={() => setShowUploadForm(true)}>
+                <Upload className="h-4 w-4 " />
+              </Button>
             </div>
           </div>
-        )}
-      </div>
 
-      {/* Notes Section */}
-      <div>
-        <div className="flex justify-between items-center mb-2">
-          <label className="block text-sm font-medium text-gray-700">Notes</label>
-          <Button
-            type="button"
-            onClick={() => setShowNoteSelector(true)}
-            variant="secondary"
-          >
-            <Plus className="h-4 w-4 mr-1" />
-            Add Note
-          </Button>
-        </div>
-        <div className="space-y-2">
-          {selectedNotes.map((note) => (
-            <div
-              key={note.id}
-              className="flex items-center justify-between bg-gray-50 p-2 rounded-md"
-            >
-              <span className="text-sm text-gray-700">{note.title}</span>
-              <button
-                type="button"
-                onClick={() => removeNote(note.id)}
-                className="text-red-600 hover:text-red-800"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          ))}
-        </div>
-        {showNoteSelector && (
-          <div className="mt-2 p-4 border rounded-md">
-            <div className="flex justify-between items-center mb-2">
-              <h4 className="text-sm font-medium">Select Note</h4>
-              <button
-                type="button"
-                onClick={() => setShowNoteSelector(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="space-y-2 max-h-40 overflow-y-auto">
-              {availableNotes
-                .filter(n => !selectedNotes.find(sn => sn.id === n.id))
-                .map((note) => (
-                  <button
-                    key={note.id}
-                    type="button"
-                    onClick={() => addNote(note)}
-                    className="w-full text-left p-2 hover:bg-gray-50 rounded-md"
-                  >
-                    {note.title}
-                  </button>
-                ))}
-            </div>
-          </div>
-        )}
-      </div>
+          {error && <ErrorMessage message={error} />}
 
-      <div className="flex justify-end space-x-3">
-        <Button type="button" variant="secondary" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button type="submit">
-          {composition ? 'Update Composition' : 'Create Composition'}
-        </Button>
+          <RecordingList
+            recordings={recordings}
+            onDelete={handleDelete}
+            onShare={handleShare}
+            onSelect={handleSelectRecording}
+            selectedRecording={selectedRecording}
+            onOpenDetails={handleOpenDetails} // Passez onOpenDetails ici
+            loading={loading}
+          />
+        </div>
       </div>
-    </form>
+    </div>
   );
-}
+};
 
-export default CompositionForm;
+export default Recordings;
