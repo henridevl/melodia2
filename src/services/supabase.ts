@@ -78,6 +78,7 @@ export type Feedback = {
   created_at: string;
   timestamp_seconds?: number;
   liked_by?: string[];
+  compositions_id?: string;
 };
 
 export type Composition = {
@@ -91,14 +92,14 @@ export type Composition = {
   notes?: Note[];
 };
 
-export type CompositionRecording = {
+export type Composition_Recording = {
   id: string;
   composition_id: string;
   recording_id: string;
   created_at: string;
 };
 
-export type CompositionNote = {
+export type Composition_Note = {
   id: string;
   composition_id: string;
   note_id: string;

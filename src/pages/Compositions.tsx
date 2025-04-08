@@ -1,6 +1,5 @@
-// Compositions.tsx
 import React, { useState, useEffect } from 'react';
-import { Plus, List, Grid } from 'lucide-react';
+import { Plus, List, Grid, Filter } from 'lucide-react';
 import { supabase } from '../services/supabase';
 import type { Composition, Profile } from '../services/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -9,6 +8,7 @@ import CompositionForm from '../components/compositions/CompositionForm';
 import CompositionDetails from '../components/compositions/CompositionDetails';
 import Button from '../components/ui/Button';
 import Navigation from '../components/Navigation';
+import ConfirmationDialog from '../components/ui/ConfirmationDialog'; // Assurez-vous que le chemin est correct
 
 const Compositions: React.FC = () => {
   const { user, signOut } = useAuth();
@@ -23,6 +23,11 @@ const Compositions: React.FC = () => {
   const [selectedComposition, setSelectedComposition] = useState<Composition | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'gallery'>('list');
+  const [filter, setFilter] = useState<'all' | 'recordings' | 'notes'>('all');
+  const [sortBy, setSortBy] = useState<'date' | 'title'>('date');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showConfirmationDialog, setShowConfirmationDialog] = useState(false);
+  const [compositionToDelete, setCompositionToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCompositions();
@@ -69,6 +74,7 @@ const Compositions: React.FC = () => {
 
   const handleSubmit = async (compositionData: Partial<Composition>) => {
     try {
+      
       if (!user) return;
 
       const { data: profile, error: profileError } = await supabase
@@ -105,6 +111,7 @@ const Compositions: React.FC = () => {
       setError(null);
     } catch (error) {
       console.error('Error saving composition:', error);
+      console.log(compositionData);
       setError(
         error instanceof Error
           ? error.message
@@ -119,12 +126,19 @@ const Compositions: React.FC = () => {
     setError(null);
   };
 
-  const handleDelete = async (compositionId: string) => {
+  const handleDelete = (compositionId: string) => {
+    setCompositionToDelete(compositionId);
+    setShowConfirmationDialog(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!compositionToDelete) return;
+
     try {
       const { error } = await supabase
         .from('compositions')
         .delete()
-        .eq('id', compositionId)
+        .eq('id', compositionToDelete)
         .eq('user_id', user.id);
 
       if (error) throw error;
@@ -135,12 +149,46 @@ const Compositions: React.FC = () => {
     } catch (error) {
       console.error('Error deleting composition:', error);
       setError('Failed to delete composition. Please try again.');
+    } finally {
+      setShowConfirmationDialog(false);
+      setCompositionToDelete(null);
     }
+  };
+
+  const cancelDelete = () => {
+    setShowConfirmationDialog(false);
+    setCompositionToDelete(null);
   };
 
   const handleSelectComposition = (composition: Composition) => {
     setSelectedComposition(composition);
     setShowDetails(true);
+  };
+
+  const filteredCompositions = () => {
+    let items = compositions;
+
+    // Apply search
+    if (searchTerm) {
+      items = items.filter(item =>
+        item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.description.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    // Apply sorting
+    items = items.sort((a, b) => {
+      switch (sortBy) {
+        case 'date':
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        case 'title':
+          return a.title.localeCompare(b.title);
+        default:
+          return 0;
+      }
+    });
+
+    return items;
   };
 
   return (
@@ -154,83 +202,121 @@ const Compositions: React.FC = () => {
         profile={profile}
         user={user}
       />
-      {!showDetails  && !showForm && (
-      <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-semibold text-gray-900">Compositions</h1>
-          <div className="flex items-center space-x-4">
-            <Button
-              onClick={() => {
-                setEditingComposition(null);
-                setShowForm(true);
-                setError(null);
-              }}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              New Composition
-            </Button>
-            <button
-              onClick={() =>
-                setViewMode(viewMode === 'list' ? 'gallery' : 'list')
-              }
-              className="bg-indigo-600 text-white rounded-full p-2 hover:bg-indigo-700 flex items-center"
-            >
-              {viewMode === 'list' ? <List size={16} /> : <Grid size={16} />}
-            </button>
+      {!showDetails && !showForm && (
+        <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-2xl font-semibold text-gray-900">Compositions</h1>
+            <div className="flex items-center space-x-4">
+              <Button
+                onClick={() => {
+                  setEditingComposition(null);
+                  setShowForm(true);
+                  setError(null);
+                }}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                New Composition
+              </Button>
+              <button
+                onClick={() =>
+                  setViewMode(viewMode === 'list' ? 'gallery' : 'list')
+                }
+                className="bg-indigo-600 text-white rounded-full p-2 hover:bg-indigo-700 flex items-center"
+              >
+                {viewMode === 'list' ? <List size={16} /> : <Grid size={16} />}
+              </button>
+            </div>
           </div>
+
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-600">{error}</p>
+            </div>
+          )}
+
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex items-center space-x-2">
+              <Filter className="h-5 w-5 text-gray-500" />
+              <select
+                value={filter}
+                onChange={(e) => setFilter(e.target.value as 'all' | 'recordings' | 'notes')}
+                className="border border-gray-300 rounded-md px-2 py-1"
+              >
+                <option value="all">All</option>
+                <option value="recordings">Recordings</option>
+                <option value="notes">Notes</option>
+              </select>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as 'date' | 'title')}
+                className="border border-gray-300 rounded-md px-2 py-1"
+              >
+                <option value="date">Date</option>
+                <option value="title">Title</option>
+              </select>
+            </div>
+            <input
+              type="text"
+              placeholder="Search compositions..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="border border-gray-300 rounded-md px-2 py-1"
+            />
+          </div>
+
+          <CompositionsList
+            compositions={filteredCompositions()}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+            onSelect={handleSelectComposition}
+            selectedComposition={selectedComposition}
+            loading={loading}
+            viewMode={viewMode}
+          />
         </div>
-
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-sm text-red-600">{error}</p>
-          </div>
-        )}
-
-        
-
-        
-
-        <CompositionsList
-          compositions={compositions}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          onSelect={handleSelectComposition}
-          selectedComposition={selectedComposition}
-          loading={loading}
-          viewMode={viewMode}
-        />
-      </div>
       )}
       {showForm ? (
-          <div className="bg-white rounded-lg shadow p-6 mb-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-4">
-              {editingComposition ? 'Edit Composition' : 'Create New Composition'}
-            </h2>
-            <CompositionForm
-              composition={editingComposition || undefined}
-              onSubmit={handleSubmit}
-              onCancel={() => {
-                setShowForm(false);
-                setEditingComposition(null);
-                setError(null);
-              }}
-            />
-          </div>
-        ) : null}
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <h2 className="text-lg font-medium text-gray-900 mb-4">
+            {editingComposition ? 'Edit Composition' : 'Create New Composition'}
+          </h2>
+          <CompositionForm
+            composition={editingComposition || undefined}
+            onSubmit={handleSubmit}
+            onClose={() => {
+              setShowForm(false);
+
+            }}
+            onCancel={() => {
+              setShowForm(false);
+              setEditingComposition(null);
+              setError(null);
+            }}
+          />
+        </div>
+      ) : null}
+
       {showDetails && selectedComposition && user && (
-          <div className="max-w-4xl  mx-auto py-8 px-4 sm:px-6 lg:px-8">
-            <CompositionDetails
-              composition={selectedComposition}
-              userId={user.id}
-              onClose={() => {
-                setShowDetails(false);
-                setSelectedComposition(null);
-              }}
-              onDelete={handleDelete}
-              onEdit={handleEdit}
-            />
-          </div>
-        )}
+        <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+          <CompositionDetails
+            composition={selectedComposition}
+            userId={user.id}
+            onClose={() => {
+              setShowDetails(false);
+              setSelectedComposition(null);
+            }}
+            onDelete={handleDelete}
+            onEdit={handleEdit}
+          />
+        </div>
+      )}
+
+      <ConfirmationDialog
+        isOpen={showConfirmationDialog}
+        onConfirm={confirmDelete}
+        onCancel={cancelDelete}
+        message="Are you sure you want to delete this composition?"
+      />
     </div>
   );
 };

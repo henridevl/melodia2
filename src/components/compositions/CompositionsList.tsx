@@ -36,28 +36,35 @@ const CompositionsList: React.FC<CompositionsListProps> = ({
       {compositions.map((composition) => (
         <div
           key={composition.id}
-          className={`p-4 rounded-lg shadow ${
+          className={`p-4 rounded-lg shadow cursor-pointer ${
             selectedComposition?.id === composition.id ? 'bg-indigo-100' : 'bg-white'
           }`}
         >
-          <div className="flex justify-between items-center">
+          <div 
+            className="flex justify-between items-center "
+            onClick={() => onEdit(composition)}
+            >
             <h3 className="text-lg font-medium text-gray-900">{composition.title}</h3>
             <div className="flex space-x-2">
-              <Button onClick={() => onEdit(composition)} >
-                <Pencil className="h-4 w-4" />
-              </Button>
-              <Button onClick={() => onDelete(composition.id)}  color="red">
-                <Trash2 className="h-4 w-4" />
-              </Button>
+              
+            <Button
+              onClick={(e) => {
+                e.stopPropagation(); // Empêche la propagation de l'événement au parent
+                onDelete(composition.id);
+              }}
+              color="red"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
             </div>
           </div>
-          <p className="mt-2 text-sm text-gray-600">{composition.description}</p>
+          {/*<p className="mt-2 text-sm text-gray-600">{composition.description}</p>
           <button
             onClick={() => onSelect(composition)}
             className="mt-4 text-indigo-600 hover:text-indigo-800"
           >
             View Details
-          </button>
+        </button>*/}
         </div>
       ))}
     </div>

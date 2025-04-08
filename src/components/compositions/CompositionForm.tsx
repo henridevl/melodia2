@@ -1,452 +1,491 @@
-import React, { useState, useEffect, useMemo } from 'react';
+// Main CompositionForm Component
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../../services/supabase';
-import type { Composition, Recording, Note } from '../../services/supabase';
+import type { Composition, Recording, Note, Feedback } from '../../services/supabase';
+import { ArrowLeft, Plus, X } from 'lucide-react';
 import Button from '../ui/Button';
-import { Plus, X, Music, FileText, Calendar, Clock, Tag, Filter, Trash } from 'lucide-react';
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css';
-import AudioPlayer from '../recordings/AudioPlayer';
+import FormHeader from './FormHeader';
+import CompositionViewer from './CompositionViewer';
+import CompositionEditor from './CompositionEditor';
 
 interface CompositionFormProps {
   composition?: Composition;
+  userId: string;
   onSubmit: (compositionData: Partial<Composition>) => void;
-  onCancel: () => void;
+  onDelete: (compositionId: string) => void;
+  onClose: () => void;
+  loading?: boolean;
 }
-
-const useSelector = (initialItems: any[], fetchItems: () => Promise<any[]>) => {
-  const [selectedItems, setSelectedItems] = useState<any[]>(initialItems);
-  const [availableItems, setAvailableItems] = useState<any[]>([]);
-  const [showSelector, setShowSelector] = useState(false);
-
-  useEffect(() => {
-    const loadItems = async () => {
-      const items = await fetchItems();
-      setAvailableItems(items);
-    };
-    loadItems();
-  }, [fetchItems]);
-
-  const addItem = (item: any) => {
-    setSelectedItems((prevItems) => [...prevItems, item]);
-  };
-
-  const removeItem = (itemId: string) => {
-    setSelectedItems((prevItems) => prevItems.filter((item) => item.id !== itemId));
-  };
-
-  const filteredAvailableItems = useMemo(() => {
-    return availableItems.filter((item) => !selectedItems.find((si) => si.id === item.id));
-  }, [availableItems, selectedItems]);
-
-  return {
-    selectedItems,
-    availableItems: filteredAvailableItems,
-    showSelector,
-    setShowSelector,
-    addItem,
-    removeItem,
-  };
-};
 
 const CompositionForm: React.FC<CompositionFormProps> = ({
   composition,
+  userId,
   onSubmit,
-  onCancel,
+  onDelete,
+  onClose,
+  loading = false,
 }) => {
-  const [title, setTitle] = useState<string>(composition?.title || '');
-  const [description, setDescription] = useState<string>(composition?.description || '');
-  const [recordings, setRecordings] = useState<Recording[]>([]);
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [isEditMode, setIsEditMode] = useState(!composition);
+  const [title, setTitle] = useState(composition?.title || '');
+  const [description, setDescription] = useState(composition?.description || '');
+  const [tags, setTags] = useState<string[]>(composition?.tags || []);
+  const [tagInput, setTagInput] = useState('');
+  const [validationErrors, setValidationErrors] = useState<{
+    title?: string;
+    description?: string;
+  }>({});
 
-  const {
-    selectedItems: selectedRecordings,
-    availableItems: availableRecordings,
-    showSelector: showRecordingSelector,
-    setShowSelector: setShowRecordingSelector,
-    addItem: addRecording,
-    removeItem: removeRecording,
-  } = useSelector(composition?.recordings || [], async () => {
+  const [selectedRecordings, setSelectedRecordings] = useState<Recording[]>(composition?.recordings || []);
+  const [selectedNotes, setSelectedNotes] = useState<Note[]>(composition?.notes || []);
+  const [availableRecordings, setAvailableRecordings] = useState<Recording[]>([]);
+  const [availableNotes, setAvailableNotes] = useState<Note[]>([]);
+  const [showRecordingSelector, setShowRecordingSelector] = useState(false);
+  const [showNoteSelector, setShowNoteSelector] = useState(false);
+
+  useEffect(() => {
+    fetchAvailableRecordings();
+    fetchAvailableNotes();
+  }, []);
+
+  const fetchAvailableRecordings = async () => {
     const { data, error } = await supabase
       .from('recordings')
       .select('*')
       .order('created_at', { ascending: false });
-    return error ? [] : data;
-  });
 
-  const {
-    selectedItems: selectedNotes,
-    availableItems: availableNotes,
-    showSelector: showNoteSelector,
-    setShowSelector: setShowNoteSelector,
-    addItem: addNote,
-    removeItem: removeNote,
-  } = useSelector(composition?.notes || [], async () => {
+    if (!error && data) {
+      setAvailableRecordings(data);
+    }
+  };
+
+  const fetchAvailableNotes = async () => {
     const { data, error } = await supabase
       .from('notes')
       .select('*')
       .order('created_at', { ascending: false });
-    return error ? [] : data;
-  });
 
-  useEffect(() => {
-    if (composition) {
-      fetchAssociatedContent();
-    } else {
-      setLoading(false);
-    }
-  }, [composition]);
-
-  const fetchAssociatedContent = async () => {
-    try {
-      // Fetch associated recordings
-      const { data: recordingData, error: recordingError } = await supabase
-        .from('composition_recordings')
-        .select(`
-          recordings (*)
-        `)
-        .eq('composition_id', composition.id);
-
-      if (recordingError) throw recordingError;
-      setRecordings(recordingData?.map(r => r.recordings) || []);
-
-      // Fetch associated notes
-      const { data: noteData, error: noteError } = await supabase
-        .from('composition_notes')
-        .select(`
-          notes (*)
-        `)
-        .eq('composition_id', composition.id);
-
-      if (noteError) throw noteError;
-      setNotes(noteData?.map(n => n.notes) || []);
-    } catch (error) {
-      console.error('Error fetching associated content:', error);
-    } finally {
-      setLoading(false);
+    if (!error && data) {
+      setAvailableNotes(data);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const errors: { title?: string; description?: string } = {};
+    if (!title.trim()) {
+      errors.title = 'Title is required';
+    }
+    if (!description.trim()) {
+      errors.description = 'Description is required';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      return;
+    }
+
     const compositionData = {
-      title,
-      description,
+      title: title.trim(),
+      description: description.trim(),
       recordings: selectedRecordings,
       notes: selectedNotes,
+      updated_at: new Date().toISOString()
     };
-    onSubmit(compositionData);
+
+    await onSubmit(compositionData);
+    setIsEditMode(false);
+  };
+
+  const handleTagAdd = (newTag: string) => {
+    if (newTag.trim() && !tags.includes(newTag.trim())) {
+      setTags([...tags, newTag.trim()]);
+    }
+    setTagInput('');
+  };
+
+  const handleAddTag = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && tagInput.trim()) {
+      e.preventDefault();
+      handleTagAdd(tagInput);
+    }
+  };
+
+  const removeTag = (tagToRemove: string) => {
+    setTags(tags.filter(tag => tag !== tagToRemove));
   };
 
   const handleDescriptionChange = (value: string) => {
     setDescription(value);
-  };
-
-  const handleAddNote = async () => {
-    const newNote = {
-      title: 'New Note',
-      content: 'This is a new note.',
-      created_at: new Date().toISOString(),
-      composition_id: composition.id,
-    };
-
-    try {
-      const { data, error } = await supabase
-        .from('notes')
-        .insert([newNote])
-        .select('*');
-
-      if (error) throw error;
-
-      setNotes([...notes, data[0]]);
-    } catch (error) {
-      console.error('Error adding note:', error);
+    if (validationErrors.description) {
+      setValidationErrors(prev => ({ ...prev, description: undefined }));
     }
   };
 
-  const handleDeleteNote = async (noteId: string) => {
-    try {
-      const { error } = await supabase
-        .from('notes')
-        .delete()
-        .eq('id', noteId);
-
-      if (error) throw error;
-
-      setNotes(notes.filter(note => note.id !== noteId));
-    } catch (error) {
-      console.error('Error deleting note:', error);
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setTitle(e.target.value);
+    if (validationErrors.title) {
+      setValidationErrors(prev => ({ ...prev, title: undefined }));
     }
   };
 
-  const handleAddRecording = async () => {
-    const newRecording = {
-      title: 'New Recording',
-      audio_url: 'https://example.com/audio.mp3',
-      created_at: new Date().toISOString(),
-      composition_id: composition.id,
-    };
+  const addRecording = async (recording: Recording) => {
+    const updatedRecordings = [...selectedRecordings, recording];
+    setSelectedRecordings(updatedRecordings);
+    setShowRecordingSelector(false);
 
-    try {
-      const { data, error } = await supabase
-        .from('recordings')
-        .insert([newRecording])
-        .select('*');
+    // Ajouter une entrée dans la table de jonction composition_recordings
+    const { error } = await supabase
+      .from('composition_recordings')
+      .insert([{ composition_id: composition!.id, recording_id: recording.id }]);
 
-      if (error) throw error;
-
-      setRecordings([...recordings, data[0]]);
-    } catch (error) {
+    if (error) {
       console.error('Error adding recording:', error);
     }
   };
 
-  const handleDeleteRecording = async (recordingId: string) => {
-    try {
-      const { error } = await supabase
-        .from('recordings')
-        .delete()
-        .eq('id', recordingId);
+  const removeRecording = async (recordingId: string) => {
+    const updatedRecordings = selectedRecordings.filter(r => r.id !== recordingId);
+    setSelectedRecordings(updatedRecordings);
 
-      if (error) throw error;
+    // Supprimer l'entrée correspondante dans la table de jonction composition_recordings
+    const { error } = await supabase
+      .from('composition_recordings')
+      .delete()
+      .eq('composition_id', composition!.id)
+      .eq('recording_id', recordingId);
 
-      setRecordings(recordings.filter(recording => recording.id !== recordingId));
-    } catch (error) {
-      console.error('Error deleting recording:', error);
+    if (error) {
+      console.error('Error removing recording:', error);
     }
   };
 
-  return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <div>
-        <label htmlFor="title" className="block text-sm font-medium text-gray-700">
-          Title
-        </label>
-        <input
-          type="text"
-          id="title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-          required
+  const addNote = async (note: Note) => {
+    const updatedNotes = [...selectedNotes, note];
+    setSelectedNotes(updatedNotes);
+    setShowNoteSelector(false);
+
+    // Ajouter une entrée dans la table de jonction composition_notes
+    const { error } = await supabase
+      .from('composition_notes')
+      .insert([{ composition_id: composition!.id, note_id: note.id }]);
+
+    if (error) {
+      console.error('Error adding note:', error);
+    }
+  };
+
+  const removeNote = async (noteId: string) => {
+    const updatedNotes = selectedNotes.filter(n => n.id !== noteId);
+    setSelectedNotes(updatedNotes);
+
+    // Supprimer l'entrée correspondante dans la table de jonction composition_notes
+    const { error } = await supabase
+      .from('composition_notes')
+      .delete()
+      .eq('composition_id', composition!.id)
+      .eq('note_id', noteId);
+
+    if (error) {
+      console.error('Error removing note:', error);
+    }
+  };
+
+  const updateComposition = async (data: Partial<Composition>) => {
+    const compositionData = {
+      ...composition,
+      ...data,
+      updated_at: new Date().toISOString()
+    };
+
+    await onSubmit(compositionData);
+  };
+
+  if (isEditMode) {
+    return (
+      <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-xl p-6">
+        <FormHeader
+          isEditMode={true}
+          onClose={() => composition ? setIsEditMode(false) : onClose()}
+          onSubmit={handleSubmit}
+          loading={loading}
+          isExisting={!!composition}
         />
-      </div>
 
-      <div>
-        <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-          Description
-        </label>
-        <ReactQuill
-          id="description"
-          value={description}
-          onChange={handleDescriptionChange}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+        <CompositionEditor
+          title={title}
+          description={description}
+          tags={tags}
+          tagInput={tagInput}
+          validationErrors={validationErrors}
+          onTitleChange={handleTitleChange}
+          onDescriptionChange={handleDescriptionChange}
+          onTagInputChange={(e) => setTagInput(e.target.value)}
+          onTagAdd={handleAddTag}
+          onTagRemove={removeTag}
         />
-      </div>
 
-      {/* Recordings Section */}
-      <SelectorSection
-        label="Recordings"
-        selectedItems={selectedRecordings}
-        availableItems={availableRecordings}
-        showSelector={showRecordingSelector}
-        setShowSelector={setShowRecordingSelector}
-        addItem={addRecording}
-        removeItem={removeRecording}
-      />
-
-      {/* Notes Section */}
-      <SelectorSection
-        label="Notes"
-        selectedItems={selectedNotes}
-        availableItems={availableNotes}
-        showSelector={showNoteSelector}
-        setShowSelector={setShowNoteSelector}
-        addItem={addNote}
-        removeItem={removeNote}
-      />
-
-      {/* Associated Recordings and Notes */}
-      <div className="space-y-6 ">
-        {loading ? (
-          <div className="text-center py-8">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading content...</p>
+        {/* Recordings Section */}
+        <div>
+          <div className="flex justify-between items-center mb-2">
+            <label className="block text-sm font-medium text-gray-700">Recordings</label>
+            <Button
+              type="button"
+              onClick={() => setShowRecordingSelector(true)}
+              variant="secondary"
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              Add Recording
+            </Button>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-6">
-            {recordings.map((recording) => (
+          <div className="space-y-2">
+            {selectedRecordings.map((recording) => (
               <div
                 key={recording.id}
-                className="bg-gray-50 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow"
+                className="flex items-center justify-between bg-gray-50 p-2 rounded-md"
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center">
-                    <Music className="h-5 w-5 text-indigo-500 mr-2" />
-                    <div>
-                      <h3 className="text-lg font-medium text-gray-900">
-                        {recording.title}
-                      </h3>
-                      <div className="flex items-center space-x-4 mt-1 text-sm text-gray-500">
-                        <span className="flex items-center">
-                          <Calendar className="h-4 w-4 mr-1" />
-                          {new Date(recording.created_at).toLocaleDateString()}
-                        </span>
-                        <span className="flex items-center">
-                          <Clock className="h-4 w-4 mr-1" />
-                          {new Date(recording.created_at).toLocaleTimeString()}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <Button
-                    onClick={() => handleDeleteRecording(recording.id)}
-                    className="bg-red-500 text-white hover:bg-red-600"
-                  >
-                    <Trash className="h-5 w-5" />
-                  </Button>
-                </div>
-
-                <div className="mt-4">
-                  <AudioPlayer
-                    audioUrl={recording.audio_url}
-                    resourceId={recording.id}
-                    resourceType="recording"
-                  />
-                </div>
+                <span className="text-sm text-gray-700">{recording.title}</span>
+                <button
+                  type="button"
+                  onClick={() => removeRecording(recording.id)}
+                  className="text-red-600 hover:text-red-800"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
             ))}
+          </div>
+          {showRecordingSelector && (
+            <div className="mt-2 p-4 border rounded-md">
+              <div className="flex justify-between items-center mb-2">
+                <h4 className="text-sm font-medium">Select Recording</h4>
+                <button
+                  type="button"
+                  onClick={() => setShowRecordingSelector(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="space-y-2 max-h-40 overflow-y-auto">
+                {availableRecordings
+                  .filter(r => !selectedRecordings.find(sr => sr.id === r.id))
+                  .map((recording) => (
+                    <button
+                      key={recording.id}
+                      type="button"
+                      onClick={() => addRecording(recording)}
+                      className="w-full text-left p-2 hover:bg-gray-50 rounded-md"
+                    >
+                      {recording.title}
+                    </button>
+                  ))}
+              </div>
+            </div>
+          )}
+        </div>
 
-            {notes.map((note) => (
+        {/* Notes Section */}
+        <div>
+          <div className="flex justify-between items-center mb-2">
+            <label className="block text-sm font-medium text-gray-700">Notes</label>
+            <Button
+              type="button"
+              onClick={() => setShowNoteSelector(true)}
+              variant="secondary"
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              Add Note
+            </Button>
+          </div>
+          <div className="space-y-2">
+            {selectedNotes.map((note) => (
               <div
                 key={note.id}
-                className="bg-gray-50 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow"
+                className="flex items-center justify-between bg-gray-50 p-2 rounded-md"
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center">
-                    <FileText className="h-5 w-5 text-green-500 mr-2" />
-                    <div>
-                      <h3 className="text-lg font-medium text-gray-900">
-                        {note.title}
-                      </h3>
-                      <div className="flex items-center space-x-4 mt-1 text-sm text-gray-500">
-                        <span className="flex items-center">
-                          <Calendar className="h-4 w-4 mr-1" />
-                          {new Date(note.created_at).toLocaleDateString()}
-                        </span>
-                        <span className="flex items-center">
-                          <Clock className="h-4 w-4 mr-1" />
-                          {new Date(note.created_at).toLocaleTimeString()}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <Button
-                    onClick={() => handleDeleteNote(note.id)}
-                    className="bg-red-500 text-white hover:bg-red-600"
-                  >
-                    <Trash className="h-5 w-5" />
-                  </Button>
-                </div>
-
-                <div className="mt-4 prose max-w-none">
-                  <p className="text-gray-700 whitespace-pre-wrap">
-                    {note.content}
-                  </p>
-                </div>
+                <span className="text-sm text-gray-700">{note.title}</span>
+                <button
+                  type="button"
+                  onClick={() => removeNote(note.id)}
+                  className="text-red-600 hover:text-red-800"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
             ))}
+          </div>
+          {showNoteSelector && (
+            <div className="mt-2 p-4 border rounded-md">
+              <div className="flex justify-between items-center mb-2">
+                <h4 className="text-sm font-medium">Select Note</h4>
+                <button
+                  type="button"
+                  onClick={() => setShowNoteSelector(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="space-y-2 max-h-40 overflow-y-auto">
+                {availableNotes
+                  .filter(n => !selectedNotes.find(sn => sn.id === n.id))
+                  .map((note) => (
+                    <button
+                      key={note.id}
+                      type="button"
+                      onClick={() => addNote(note)}
+                      className="w-full text-left p-2 hover:bg-gray-50 rounded-md"
+                    >
+                      {note.title}
+                    </button>
+                  ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-xl p-6">
+      <FormHeader
+        isEditMode={false}
+        onClose={onClose}
+        onEdit={() => setIsEditMode(true)}
+        onDelete={() => onDelete(composition!.id)}
+      />
+
+      <CompositionViewer
+        title={title}
+        description={description}
+        tags={tags}
+        compositionId={composition?.id}
+        userId={userId}
+      />
+
+      {/* Recordings Section */}
+      <div>
+        <div className="flex justify-between items-center mb-2">
+          <label className="block text-sm font-medium text-gray-700">Recordings</label>
+          <Button
+            type="button"
+            onClick={() => setShowRecordingSelector(true)}
+            variant="secondary"
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Add Recording
+          </Button>
+        </div>
+        <div className="space-y-2">
+          {selectedRecordings.map((recording) => (
+            <div
+              key={recording.id}
+              className="flex items-center justify-between bg-gray-50 p-2 rounded-md"
+            >
+              <span className="text-sm text-gray-700">{recording.title}</span>
+              <button
+                type="button"
+                onClick={() => removeRecording(recording.id)}
+                className="text-red-600 hover:text-red-800"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+        {showRecordingSelector && (
+          <div className="mt-2 p-4 border rounded-md">
+            <div className="flex justify-between items-center mb-2">
+              <h4 className="text-sm font-medium">Select Recording</h4>
+              <button
+                type="button"
+                onClick={() => setShowRecordingSelector(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="space-y-2 max-h-40 overflow-y-auto">
+              {availableRecordings
+                .filter(r => !selectedRecordings.find(sr => sr.id === r.id))
+                .map((recording) => (
+                  <button
+                    key={recording.id}
+                    type="button"
+                    onClick={() => addRecording(recording)}
+                    className="w-full text-left p-2 hover:bg-gray-50 rounded-md"
+                  >
+                    {recording.title}
+                  </button>
+                ))}
+            </div>
           </div>
         )}
       </div>
 
-      <div className="flex justify-end space-x-3 pb-10">
-        <Button type="button" variant="secondary" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button type="submit">
-          {composition ? 'Update Composition' : 'Create Composition'}
-        </Button>
-      </div>
-    </form>
-  );
-};
-
-interface SelectorSectionProps {
-  label: string;
-  selectedItems: any[];
-  availableItems: any[];
-  showSelector: boolean;
-  setShowSelector: (show: boolean) => void;
-  addItem: (item: any) => void;
-  removeItem: (itemId: string) => void;
-}
-
-const SelectorSection: React.FC<SelectorSectionProps> = ({
-  label,
-  selectedItems,
-  availableItems,
-  showSelector,
-  setShowSelector,
-  addItem,
-  removeItem,
-}) => (
-  <div>
-    <div className="flex justify-between items-center mb-2 ">
-      <label className="block text-sm font-medium text-gray-700">{label}</label>
-      <Button
-        type="button"
-        onClick={() => setShowSelector(true)}
-        variant="secondary"
-      >
-        <Plus className="h-4 w-4 mr-1" />
-        Add {label.slice(0, -1)}
-      </Button>
-    </div>
-    <div className="space-y-2">
-      {selectedItems.map((item) => (
-        <div
-          key={item.id}
-          className="flex items-center justify-between bg-gray-50 p-2 rounded-md"
-        >
-          <span className="text-sm text-gray-700">{item.title}</span>
-          <button
-            type="button"
-            onClick={() => removeItem(item.id)}
-            className="text-red-600 hover:text-red-800"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      ))}
-    </div>
-    {showSelector && (
-      <div className="mt-2 p-4 border rounded-md">
+      {/* Notes Section */}
+      <div>
         <div className="flex justify-between items-center mb-2">
-          <h4 className="text-sm font-medium">Select {label.slice(0, -1)}</h4>
-          <button
+          <label className="block text-sm font-medium text-gray-700">Notes</label>
+          <Button
             type="button"
-            onClick={() => setShowSelector(false)}
-            className="text-gray-400 hover:text-gray-600"
+            onClick={() => setShowNoteSelector(true)}
+            variant="secondary"
           >
-            <X className="h-4 w-4" />
-          </button>
+            <Plus className="h-4 w-4 mr-1" />
+            Add Note
+          </Button>
         </div>
-        <div className="space-y-2 max-h-40 overflow-y-auto">
-          {availableItems.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => addItem(item)}
-              className="w-full text-left p-2 hover:bg-gray-50 rounded-md"
+        <div className="space-y-2">
+          {selectedNotes.map((note) => (
+            <div
+              key={note.id}
+              className="flex items-center justify-between bg-gray-50 p-2 rounded-md"
             >
-              {item.title}
-            </button>
+              <span className="text-sm text-gray-700">{note.title}</span>
+              <button
+                type="button"
+                onClick={() => removeNote(note.id)}
+                className="text-red-600 hover:text-red-800"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           ))}
         </div>
+        {showNoteSelector && (
+          <div className="mt-2 p-4 border rounded-md">
+            <div className="flex justify-between items-center mb-2">
+              <h4 className="text-sm font-medium">Select Note</h4>
+              <button
+                type="button"
+                onClick={() => setShowNoteSelector(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="space-y-2 max-h-40 overflow-y-auto">
+              {availableNotes
+                .filter(n => !selectedNotes.find(sn => sn.id === n.id))
+                .map((note) => (
+                  <button
+                    key={note.id}
+                    type="button"
+                    onClick={() => addNote(note)}
+                    className="w-full text-left p-2 hover:bg-gray-50 rounded-md"
+                  >
+                    {note.title}
+                  </button>
+                ))}
+            </div>
+          </div>
+        )}
       </div>
-    )}
-  </div>
-);
+    </div>
+  );
+};
 
 export default CompositionForm;

@@ -22,7 +22,7 @@ import { useAudioContext } from '../../contexts/AudioContext';
 
 interface FeedbackProps {
   resourceId: string;
-  resourceType: 'note' | 'recording';
+  resourceType: 'note' | 'recording' | 'composition';
   userId: string;
   onFeedbackAdded?: () => void;
 }
